@@ -63,7 +63,7 @@ RUN which ruby
 
 ```
 
-On mac, you may need to `docker Quickstart Terminal` before trying out docker commands.
+On mac, you may need to start `docker Quickstart Terminal` before trying out docker commands.
 
 Now, run `docker build -t myruby .` within the same directory. Your output will look like the below.
 Use `-t` option to name your image.
