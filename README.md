@@ -57,7 +57,7 @@ Below is the sample Dockerfile
 ```
 # Filename: Dockerfile
 # Pull image from the docker hub
-FROM ruby:2.1
+FROM ruby
 
 RUN which ruby
 
@@ -70,7 +70,7 @@ Use `-t` option to name your image.
 
 ```
 Sending build context to Docker daemon 197.7 MB
-Step 1 : FROM ruby:2.1
+Step 1 : FROM ruby
  ---> c6ebc3270d1c
 Step 2 : RUN which ruby
  ---> Running in 425293ec8f98
@@ -84,7 +84,7 @@ If you try to rerun the same command, you will find that docker says that it is 
 
 ```
 Sending build context to Docker daemon 197.7 MB
-Step 1 : FROM ruby:2.1
+Step 1 : FROM ruby
  ---> c6ebc3270d1c
 Step 2 : RUN which ruby
  ---> Using cache
@@ -118,7 +118,7 @@ Step by step guide to move things to docker.
 
 ```
 # Pull image from the docker hub
-FROM ruby:2.1
+FROM ruby
 
 RUN apt-get update -qq && apt-get install -y build-essential
 
