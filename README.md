@@ -1,4 +1,4 @@
-# Learn docker
+# Getting started with docker
 
 ## Contents
 
