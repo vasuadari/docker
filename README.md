@@ -13,8 +13,11 @@
     - [Docker hub](#user-content-docker-hub)
 4. [Dockerize Applications](#user-content-dockerize-applications)
     - [Rails on docker](#user-content-rails-on-docker)
-    - Rails application(TODO)
-    - Using Nginx to host your rails app(TODO)
+    - [Rails application](#user-content-rails-application)
+        - [Docker compose](#user-content-docker-compose)
+        - Create Dockerfile for rails and its dependencies (TODO)
+        - Create docker-compose file to setup the application (TODO)
+    - Using Nginx to host your rails application (TODO)
 
 ## Introduction
 
@@ -132,3 +135,22 @@ RUN gem install rails
 ```
 
 Run `docker build -t rails .` to create a new rails image.
+
+### Rails application
+
+Lets take a sample rails application which uses MySQL database with redis and a sidekiq for running background jobs.
+
+#### Docker compose
+
+  It's a tool provided by docker(_You may need to install this separately from [here](https://docs.docker.com/compose/install/)_) which takes a YAML file with all the components, links and the ports to be exposed. And it will take care of linking, exposing ports, mounting volumes etc. This command will look for docker-compose.yml file or you can also pass the custom YAML file to it.
+
+  Sample docker-compose.yml may look like this:
+
+  ```
+  redis:
+    image: redis
+    ports:
+      - '6379'
+  ```
+
+  Run `docker-compose build` inside the directory which contains docker-compose file to build all the images and then do `docker-compose up` to start the services. When you run build, it will fetch latest redis image from the docker hub since we are using `image` option. When do `docker-compose up`, redis container will be started in its default port which we are exposing it to our host machine by setting it in the `ports` options.
