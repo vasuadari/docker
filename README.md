@@ -15,8 +15,9 @@
     - [Rails on docker](#user-content-rails-on-docker)
     - [Rails application](#user-content-rails-application)
         - [Docker compose](#user-content-docker-compose)
-        - Create Dockerfile for rails and its dependencies (TODO)
-        - Create docker-compose file to setup the application (TODO)
+        - [Creating Dockerfile](#user-content-creating-dockerfile)
+        - [Creating docker-compose file](#user-content-creating-docker-compose-file)
+        - [Start your application on docker](#user-content-running-your-application-on-docker)
     - Using Nginx to host your rails application (TODO)
 
 ## Introduction
@@ -154,3 +155,189 @@ Lets take a sample rails application which uses MySQL database with redis and a 
   ```
 
   Run `docker-compose build` inside the directory which contains docker-compose file to build all the images and then do `docker-compose up` to start the services. When you run build, it will fetch latest redis image from the docker hub since we are using `image` option. When do `docker-compose up`, redis container will be started in its default port which we are exposing it to our host machine by setting it in the `ports` options.
+
+### Creating Dockerfile
+
+Lets create a Dockerfile with ruby and install bundler.
+
+```
+# Pulls latest ruby version from the docker hub
+FROM ruby
+
+RUN apt-get update -qq && apt-get install -y build-essential
+
+# Nokogiri dependencies
+RUN apt-get install -y libxml2-dev libxslt1-dev
+
+# JS runtime dependencies
+RUN apt-get install -y nodejs
+
+RUN apt-get install -y mysql-client
+
+RUN gem install bundler
+
+ENV BUNDLE_PATH /bundle
+```
+
+### Creating docker-compose file
+
+Create a docker-compose file within the same directory where you have created Dockerfile. Typically you will have these files inside the root of your rails application.
+
+**MySQL**:
+
+For MySQL server you would need a persistent storage meaning you wouldn't want to have data inside the same container. For these reasons, docker provides
+you with data volume containers or you could use data volume. Lets create a data volume container for MySQL. Data volume container is a container which will save your data but use a light weight and existing image for running these containers.
+
+Now, lets create a docker-compose file with mysql data volume.
+
+Filename: docker-compose.yml
+```
+mysql_data_volume:
+  image: redis
+  volumes:
+    - /var/lib/mysql
+  command: echo 'Data container for mysql'
+```
+
+We have named the image as `mysql_data_volume`. Here we are using `redis` as a light weight image and `/var/lib/mysql` is a path that is created in this container. Whenever we start the services, docker runs a startup command. For data containers, you don't want your containers to be running all the time.
+So, we just run a command which will create a container and exit. But, it will not be removed.
+
+Lets add MySQL server to it.
+
+```
+mysql_data_volume:
+  image: redis
+  volumes:
+    - /var/lib/mysql
+  command: echo 'Data container for mysql'
+
+mysql:
+  image: mysql:5.5
+  volumes_from:
+    - mysql_data_volume
+  environment:
+    - MYSQL_ROOT_PASSWORD=$DOCKER_MYSQL_ROOT_PASSWORD
+```
+
+Here, we are setting mysql version as `5.5` which will be downloaded from the docker hub. `mysql` will be the image name. Set the env. variable `DOCKER_MYSQL_ROOT_PASSWORD` in your host machine. When you start the services, docker will pick up the env. variables.
+
+**Redis**:
+
+```
+redis:
+  image: redis
+```
+
+I'm not creating data container for redis. But, you can try creating a data container for redis like we have done for mysql.
+
+**Sidekiq**:
+
+```
+sidekiq:
+  build: .
+  working_dir: /opt/myapp/current
+  environment:
+    - BUNDLE_GEMFILE=/opt/myapp/current/Gemfile
+  command: bundle exec sidekiq --environment staging -C /opt/myapp/shared/config/sidekiq.yml
+  volumes:
+    - '$PWD:/opt/myapp/current'
+  links:
+    - mysql
+    - redis
+```
+
+`sidekiq` will be our image name. Setting `build` to . will tell docker-compose to look for Dockerfile within this directory. You need to set working directory for running rails commands. Use `environment` to set environment variables for the sidekiq container. Running sidekiq as startup command. You can mount host volume on the docker container using `volumes` option. Syntax goes like this `[HOST_FILE_PATH]:[DOCKER_CONTAINER_FILE_PATH]`. Since, sidekiq needs mysql and redis to run, we are linking both our images to it using `links` option.
+
+**Application**
+
+```
+rails_app:
+  build: .
+  working_dir: /opt/myapp/current
+  environment:
+    - BUNDLE_GEMFILE=/opt/myapp/current/Gemfile
+  command: bundle exec thin start
+  ports:
+    - '3000:3000'
+  volumes:
+    - '$PWD:/opt/myapp/current'
+  links:
+    - mysql
+    - redis
+```
+
+We are using same Dockerfile for both sidekiq and the application. In `ports` options, we are exposing default port of the thin server on the host machine.
+
+### Running your application on docker
+
+First, run `docker-compose build .` to build all the images. Once it completes, we need to run `bundle install`. You do not want to run it all the time. Lets cache the gems by creating a data volume container for bundler.
+
+```
+bundle_data:
+  image: redis
+  volumes:
+    - /bundle
+  command: echo 'Data container for bundler'
+```
+
+Now, you need to use mount these volume inside `sidekiq` and `rails_app` images.
+
+Your final docker-compose will look the following,
+
+```
+bundle_data:
+  image: redis
+  volumes:
+    - /bundle
+  command: echo 'Data container for bundler'
+
+mysql_data_volume:
+  image: redis
+  volumes:
+    - /var/lib/mysql
+  command: echo 'Data container for mysql'
+
+mysql:
+  image: mysql:5.5
+  volumes_from:
+    - mysql_data_volume
+  environment:
+    - MYSQL_ROOT_PASSWORD=$DOCKER_MYSQL_ROOT_PASSWORD
+
+redis:
+  image: redis
+
+sidekiq:
+  build: .
+  working_dir: /opt/myapp/current
+  environment:
+    - BUNDLE_GEMFILE=/opt/myapp/current/Gemfile
+  command: bundle exec sidekiq --environment staging -C /opt/myapp/shared/config/sidekiq.yml
+  volumes:
+    - '$PWD:/opt/myapp/current'
+  volumes_from:
+    - bundle_data
+  links:
+    - mysql
+    - redis
+
+rails_app:
+  build: .
+  working_dir: /opt/myapp/current
+  environment:
+    - BUNDLE_GEMFILE=/opt/myapp/current/Gemfile
+  command: bundle exec thin start
+  ports:
+    - '3000:3000'
+  volumes:
+    - '$PWD:/opt/myapp/current'
+  volumes_from:
+    - bundle_data
+  links:
+    - mysql
+    - redis
+```
+
+To run `bundle install` using docker-compose, do `docker-compose run rails_app bundle install`.
+
+Finally, run `docker-compose up` to start all the services.

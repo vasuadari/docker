@@ -1,0 +1,51 @@
+bundle_data:
+  image: redis
+  volumes:
+    - /bundle
+  command: echo 'Data container for bundler'
+
+mysql_data_volume:
+  image: redis
+  volumes:
+    - /var/lib/mysql
+  command: echo 'Data container for mysql'
+
+mysql:
+  image: mysql:5.5
+  volumes_from:
+    - mysql_data_volume
+  environment:
+    - MYSQL_ROOT_PASSWORD=$DOCKER_MYSQL_ROOT_PASSWORD
+
+redis:
+  image: redis
+
+sidekiq:
+  build: .
+  working_dir: /opt/myapp/current
+  environment:
+    - BUNDLE_GEMFILE=/opt/myapp/current/Gemfile
+  command: bundle exec sidekiq --environment staging -C /opt/myapp/shared/config/sidekiq.yml
+  volumes:
+    - '$PWD:/opt/myapp/current'
+  volumes_from:
+    - bundle_data
+  links:
+    - mysql
+    - redis
+
+rails_app:
+  build: .
+  working_dir: /opt/myapp/current
+  environment:
+    - BUNDLE_GEMFILE=/opt/myapp/current/Gemfile
+  command: bundle exec thin start
+  ports:
+    - '3000:3000'
+  volumes:
+    - '$PWD:/opt/myapp/current'
+  volumes_from:
+    - bundle_data
+  links:
+    - mysql
+    - redis
