@@ -1,0 +1,19 @@
+web:
+  build: .
+  command: node server.js
+  volumes:
+    - .:/src/
+  ports:
+    - "1337:1337"
+  environment:
+    NODE_ENV:
+  links:
+    - postgres
+    - redis
+
+redis:
+  image: redis:latest
+  ports:
+    - "6379:6379"
+postgres:
+  image: postgres:9.4
