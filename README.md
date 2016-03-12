@@ -18,7 +18,7 @@
         - [Creating Dockerfile](#user-content-creating-dockerfile)
         - [Creating docker-compose file](#user-content-creating-docker-compose-file)
         - [Start your application on docker](#user-content-running-your-application-on-docker)
-    - Using Nginx to host your rails application (TODO)
+    - [Setup nginx to host your rails application](#user-content-setup-nginx-to-host-your-rails-application)
 
 ## Introduction
 
@@ -251,7 +251,7 @@ sidekiq:
 **Application**
 
 ```
-rails_app:
+myapp:
   build: .
   working_dir: /opt/myapp/current
   environment:
@@ -280,7 +280,7 @@ bundle_data:
   command: echo 'Data container for bundler'
 ```
 
-Now, you need to use mount these volume inside `sidekiq` and `rails_app` images.
+Now, you need to use mount these volume inside `sidekiq` and `myapp` images.
 
 Your final docker-compose will look the following,
 
@@ -321,7 +321,7 @@ sidekiq:
     - mysql
     - redis
 
-rails_app:
+myapp:
   build: .
   working_dir: /opt/myapp/current
   environment:
@@ -338,6 +338,76 @@ rails_app:
     - redis
 ```
 
-To run `bundle install` using docker-compose, do `docker-compose run rails_app bundle install`.
+To run `bundle install` using docker-compose, do `docker-compose run myapp bundle install`.
 
 Finally, run `docker-compose up` to start all the services.
+
+### Setup nginx to host your rails application
+
+Using nginx, we are going to expose port 80 to outside world which serves your rails application. We're going to link rails app with nginx container. So far we have seen how to link containers within a directory. Lets see how to link external containers within the current directory which contains docker-compose.yml for nginx.
+
+Lets create a nginx conf file.
+
+**nginx.conf**
+
+```
+user www-data;
+worker_processes 4;
+
+events {
+  worker_connections 768;
+}
+
+http {
+  sendfile on;
+  tcp_nopush on;
+  tcp_nodelay on;
+  keepalive_timeout 65;
+  types_hash_max_size 2048;
+
+  default_type application/octet-stream;
+
+  access_log /var/log/nginx/access.log;
+  error_log /var/log/nginx/error.log;
+
+  gzip on;
+  gzip_disable 'msie6';
+
+  include /etc/nginx/conf.d/*.conf;
+  include /etc/nginx/sites-enabled/myapp;
+}
+```
+
+**sites-enabled/myapp**
+
+```
+server {
+  listen 80;
+  server_name localhost;
+
+  root /opt/myapp/current/public;
+
+  location / {
+    proxy_pass http://rails_app_myapp_1:3000;
+  }
+}
+```
+
+**docker-compose.yml**
+
+```
+web_server:
+  image: nginx
+  volumes:
+    - './config:/etc/nginx'
+    - '/opt/myapp:/opt/myapp'
+    - '/var/log/nginx:/var/log/nginx'
+  ports:
+    - '80:80'
+  external_links:
+    - rails_app_myapp_1
+```
+
+Mounting volumes for nginx configuration, your application directory and nginx log path. Also exposing port 80 on your host machine. `rails_app` is directory name of your rails app which contains docker files and `myapp_1` is nothing but your image name of your app. When you start any container docker will name the container with the image name and suffixes it with `_[0-9.*]` and thats why we are using `rails_app_myapp_1`. To verify it, just run `docker ps` command if you rails app container is running. You will find this container name.
+
+Now just run `docker-compose up` to start the nginx container.

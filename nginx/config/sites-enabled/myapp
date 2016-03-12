@@ -1,0 +1,10 @@
+server {
+  listen 80;
+  server_name localhost;
+
+  root  /opt/myapp/current/public;
+
+  location / {
+    proxy_pass http://localhost:80;
+  }
+}

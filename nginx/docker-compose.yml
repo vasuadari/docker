@@ -1,0 +1,10 @@
+web_server:
+  image: nginx
+  volumes:
+    - './config:/etc/nginx'
+    - '/opt/myapp:/opt/myapp'
+    - '/var/log/nginx:/var/log/nginx'
+  ports:
+    - '80:80'
+  external_links:
+    - rails_app_myapp_1
