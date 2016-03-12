@@ -22,7 +22,7 @@
 
 ## Introduction
 
-Using docker you can wrap your application with all its dependencies into a [container](#user-content-container) by having your host machine(Think of a machine with freshly installed Ubuntu) clean.
+Using docker you can wrap your application with all its dependencies into a [container](#user-content-container) by having your host machine clean.
 
 ## Installation
 
